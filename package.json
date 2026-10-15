@@ -1,0 +1,23 @@
+{
+  "name": "workspace",
+  "version": "0.0.0",
+  "packageManager": "pnpm@10.26.1",
+  "license": "MIT",
+  "scripts": {
+    "dev": "concurrently -k -n \"api,web\" -c \"blue,green\" \"pnpm run dev:api\" \"pnpm run dev:web\"",
+    "dev:web": "pnpm --filter @workspace/weather-routing run dev",
+    "dev:api": "DJANGO_DEBUG=true .venv/bin/python artifacts/weather-routing/backend/manage.py runserver 0.0.0.0:8001",
+    "start:api": ".venv/bin/gunicorn --chdir artifacts/weather-routing/backend config.wsgi:application --bind 0.0.0.0:8001 --workers 1 --threads 4 --timeout 30",
+    "test": "DJANGO_DEBUG=true .venv/bin/python artifacts/weather-routing/backend/manage.py test routing",
+    "build": "pnpm run typecheck && pnpm --filter @workspace/weather-routing run build",
+    "typecheck:libs": "tsc --build",
+    "typecheck": "pnpm run typecheck:libs && pnpm --filter @workspace/weather-routing run typecheck",
+    "codegen": "pnpm --filter @workspace/api-spec run codegen"
+  },
+  "private": true,
+  "devDependencies": {
+    "concurrently": "^10.0.6",
+    "prettier": "^3.9.6",
+    "typescript": "~5.9.3"
+  }
+}
