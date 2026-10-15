@@ -2,7 +2,22 @@
 
 An intelligent dispatch decision-support platform that evaluates and ranks highway route alternatives using hourly weather forecasts, checkpoint estimated arrival times (ETAs), and payload-specific risk thresholds.
 
-![Weather-Aware Truck Routing Dashboard](docs/images/dashboard.png)
+## Interface Previews
+
+### 1. Live Route Analysis & Weather Risk Map
+Real-time highway alternatives with risk-coded checkpoint markers, route metrics, and 48-hour forecast scrubber:
+![Live Route Analysis Dashboard](docs/images/dashboard.png)
+
+### 2. Dispatcher Briefing & Overview
+Initial planning workspace before route generation:
+![Dispatcher Briefing Screen](docs/images/landing.png)
+
+### 3. Trip Setup & Payload Configuration
+Lane parameters, departure scheduling, cargo weight entry, and checkpoint intervals:
+
+<p align="center">
+  <img src="docs/images/trip-parameters.png" alt="Trip Setup & Payload Parameters" width="460" />
+</p>
 
 ---
 
