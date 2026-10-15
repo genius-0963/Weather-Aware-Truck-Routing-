@@ -30,8 +30,21 @@ if not DEBUG and "*" in ALLOWED_HOSTS:
 
 ROOT_URLCONF = "config.urls"
 WSGI_APPLICATION = "config.wsgi.application"
-INSTALLED_APPS = []
-MIDDLEWARE = ["django.middleware.security.SecurityMiddleware"]
+INSTALLED_APPS = [
+    "django.contrib.staticfiles",
+]
+MIDDLEWARE = [
+    "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
+]
+
+STATIC_URL = "/static/"
+STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
+os.makedirs(STATIC_ROOT, exist_ok=True)
+FRONTEND_DIST = os.path.abspath(os.path.join(BASE_DIR, "../dist/public"))
+if os.path.exists(FRONTEND_DIST):
+    WHITENOISE_ROOT = FRONTEND_DIST
+    WHITENOISE_INDEX_FILE = True
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 USE_TZ = True
 TIME_ZONE = "UTC"
