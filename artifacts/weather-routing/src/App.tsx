@@ -45,7 +45,12 @@ function RouteMap({ routes, selected, activeRoute, forecastOffset, selectedCheck
   return (
     <div className="map-frame" data-testid="map-route-display">
       <MapContainer center={center} zoom={5} scrollWheelZoom className="route-map">
-        <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          subdomains="abcd"
+          maxZoom={20}
+        />
         <FitRoutes routes={routes} />
         {routes.map((route, index) => {
           const isSelected = route.route_id === selected;
