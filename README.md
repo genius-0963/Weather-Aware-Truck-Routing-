@@ -1,6 +1,6 @@
 # Weather-Aware Truck Routing
 
-#like link : - https://weather-aware-truck-routing-5yjx.onrender.com/
+#live link : - https://weather-aware-truck-routing-5yjx.onrender.com/
 
 
 An intelligent dispatch decision-support platform that evaluates and ranks highway route alternatives using hourly weather forecasts, checkpoint estimated arrival times (ETAs), and payload-specific risk thresholds.
