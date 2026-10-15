@@ -1,0 +1,13 @@
+node_modules
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.git
+.github
+.saropa
+reports
+.env
+.env.*
+artifacts/weather-routing/dist
