@@ -1,0 +1,260 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: routing
+    description: Route planning and forecast-aware risk
+paths:
+  /v1/health:
+    get:
+      operationId: weatherRoutingHealth
+      tags: [routing]
+      summary: Check the weather-routing API
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /v1/route-plans:
+    post:
+      operationId: createRoutePlan
+      tags: [routing]
+      summary: Compare routes using forecast weather and payload risk
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoutePlanInput"
+      responses:
+        "200":
+          description: Route alternatives ranked by weather safety and travel time
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoutePlanResult"
+        "400":
+          description: Invalid route-planning request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: No usable routes or forecast data could be returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+    RoutePlanInput:
+      type: object
+      properties:
+        origin:
+          type: string
+          minLength: 2
+          maxLength: 180
+        destination:
+          type: string
+          minLength: 2
+          maxLength: 180
+        departure_at:
+          type: string
+          format: date-time
+        load_weight_lb:
+          type: integer
+          minimum: 0
+          maximum: 200000
+        sample_interval_miles:
+          type: integer
+          enum: [10, 25, 50]
+          default: 25
+      required:
+        - origin
+        - destination
+        - departure_at
+        - load_weight_lb
+        - sample_interval_miles
+    Coordinate:
+      type: object
+      properties:
+        latitude:
+          type: number
+        longitude:
+          type: number
+      required: [latitude, longitude]
+    WeatherSample:
+      type: object
+      properties:
+        wind_mph:
+          type: number
+        rain_in_per_hour:
+          type: number
+        snow_in_per_hour:
+          type: number
+        temperature_f:
+          type: ["number", "null"]
+      required:
+        - wind_mph
+        - rain_in_per_hour
+        - snow_in_per_hour
+        - temperature_f
+    ForecastPoint:
+      allOf:
+        - $ref: "#/components/schemas/WeatherSample"
+        - type: object
+          properties:
+            forecast_offset_hours:
+              type: integer
+            risk_level:
+              type: string
+              enum: [low, moderate, high, severe, no_travel]
+          required: [forecast_offset_hours, risk_level]
+    RouteCheckpoint:
+      type: object
+      properties:
+        index:
+          type: integer
+        distance_miles:
+          type: number
+        segment_miles:
+          type: number
+        latitude:
+          type: number
+        longitude:
+          type: number
+        estimated_arrival:
+          type: string
+          format: date-time
+        weather:
+          $ref: "#/components/schemas/WeatherSample"
+        risk_level:
+          type: string
+          enum: [low, moderate, high, severe, no_travel]
+        risk_reasons:
+          type: array
+          items:
+            type: string
+        forecast:
+          type: array
+          items:
+            $ref: "#/components/schemas/ForecastPoint"
+      required:
+        - index
+        - distance_miles
+        - segment_miles
+        - latitude
+        - longitude
+        - estimated_arrival
+        - weather
+        - risk_level
+        - risk_reasons
+        - forecast
+    RouteOption:
+      type: object
+      properties:
+        route_id:
+          type: string
+        label:
+          type: string
+        distance_miles:
+          type: number
+        duration_seconds:
+          type: integer
+        estimated_arrival:
+          type: string
+          format: date-time
+        severe_miles:
+          type: number
+        high_miles:
+          type: number
+        no_travel_miles:
+          type: number
+        average_risk_score:
+          type: number
+        summary:
+          type: string
+        coordinates:
+          type: array
+          items:
+            $ref: "#/components/schemas/Coordinate"
+        checkpoints:
+          type: array
+          items:
+            $ref: "#/components/schemas/RouteCheckpoint"
+      required:
+        - route_id
+        - label
+        - distance_miles
+        - duration_seconds
+        - estimated_arrival
+        - severe_miles
+        - high_miles
+        - no_travel_miles
+        - average_risk_score
+        - summary
+        - coordinates
+        - checkpoints
+    RoutePlanResult:
+      type: object
+      properties:
+        origin:
+          type: string
+        destination:
+          type: string
+        departure_at:
+          type: string
+          format: date-time
+        load_weight_lb:
+          type: integer
+        sample_interval_miles:
+          type: integer
+        best_route_id:
+          type: string
+        routes:
+          type: array
+          minItems: 1
+          maxItems: 3
+          items:
+            $ref: "#/components/schemas/RouteOption"
+        forecast_hours_available:
+          type: integer
+          enum: [48]
+        data_sources:
+          type: array
+          items:
+            type: string
+      required:
+        - origin
+        - destination
+        - departure_at
+        - load_weight_lb
+        - sample_interval_miles
+        - best_route_id
+        - routes
+        - forecast_hours_available
+        - data_sources
+
