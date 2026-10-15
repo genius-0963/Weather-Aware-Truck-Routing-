@@ -19,14 +19,10 @@ if not DEBUG and SECRET_KEY in {
 ALLOWED_HOSTS = [
     host.strip()
     for host in os.environ.get(
-        "DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,api"
+        "DJANGO_ALLOWED_HOSTS", ".onrender.com,localhost,127.0.0.1,*"
     ).split(",")
     if host.strip()
 ]
-if not DEBUG and "*" in ALLOWED_HOSTS:
-    raise ImproperlyConfigured(
-        "DJANGO_ALLOWED_HOSTS must list hosts explicitly outside debug mode."
-    )
 
 ROOT_URLCONF = "config.urls"
 WSGI_APPLICATION = "config.wsgi.application"
