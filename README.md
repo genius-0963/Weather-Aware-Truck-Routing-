@@ -1,74 +1,188 @@
 # Weather-Aware Truck Routing
 
-A React and Django route-planning MVP that compares available road routes using
-estimated checkpoint arrival times, hourly weather forecasts, payload-specific
-risk rules, and estimated travel time.
+An intelligent dispatch decision-support platform that evaluates and ranks highway route alternatives using hourly weather forecasts, checkpoint estimated arrival times (ETAs), and payload-specific risk thresholds.
 
-## Run locally
+![Weather-Aware Truck Routing Dashboard](docs/images/dashboard.png)
 
-Requirements: Node.js 20+, pnpm 10+, Python 3.13+, and uv.
+---
 
+## Key Features
+
+- **Multi-Route Comparison**: Retrieves up to three viable driving alternatives for any origin and destination pair.
+- **Dynamic Checkpoint Sampling**: Samples road conditions every 10, 25, or 50 miles along the route.
+- **Payload-Aware Risk Assessment**:
+  - Automatically scales wind thresholds based on cargo weight (light/empty trailers are flagged for rollover risk at lower wind speeds).
+  - Evaluates precipitation and snow intensity against vehicle braking and traction thresholds.
+- **Strict Safety-First Ranking**:
+  $$\text{No-Travel Miles} \rightarrow \text{Severe Miles} \rightarrow \text{High Miles} \rightarrow \text{Average Risk} \rightarrow \text{Travel Time}$$
+- **48-Hour Forecast Scrubber**: Interactive timeline slider lets dispatchers inspect weather progression from departure through +48 hours.
+- **Esri World Street Map**: High-contrast, clean logistics basemap with real-time risk-colored checkpoint markers.
+
+---
+
+## Architecture
+
+The system uses a contract-first monorepo design connecting a high-performance React client to a stateless Django REST backend.
+
+```mermaid
+flowchart TD
+    subgraph Client ["Frontend (Port 5174 / Production SPA)"]
+        UI["React 19 + TypeScript"]
+        Map["Leaflet Map (Esri Tiles)"]
+        State["TanStack React Query"]
+    end
+
+    subgraph API_Spec ["Contract Layer (lib/)"]
+        YAML["OpenAPI 3.1 Spec"]
+        Zod["Zod Validation Schemas"]
+        ClientHooks["Typed React Query Hooks"]
+    end
+
+    subgraph Backend ["Backend (Port 8001 / Gunicorn)"]
+        Django["Django 5.2 API"]
+        RiskEngine["Payload Risk Engine"]
+        Cache["LocMem In-Memory Cache"]
+        RateLimiter["IP Rate Limiter (8 req/min)"]
+    end
+
+    subgraph External ["Upstream Services"]
+        Nominatim["Nominatim (OSM Geocoding)"]
+        OSRM["OSRM (Routing Engine)"]
+        OpenMeteo["Open-Meteo (Hourly Forecasts)"]
+    end
+
+    UI --> State
+    State --> ClientHooks
+    YAML --> Zod & ClientHooks
+    ClientHooks -->|"/api/v1/route-plans"| Django
+    Django --> RateLimiter --> RiskEngine
+    RiskEngine --> Cache
+    Cache --> Nominatim & OSRM & OpenMeteo
+```
+
+### Stack Breakdown
+
+| Layer | Technologies |
+| :--- | :--- |
+| **Frontend** | React 19, Vite 7, TypeScript, Tailwind CSS, Leaflet, Lucide Icons |
+| **API Client** | Auto-generated from OpenAPI 3.1 via Orval, TanStack Query v5 |
+| **Backend** | Python 3.13, Django 5.2, Gunicorn 23, WhiteNoise (static serving) |
+| **External Providers** | OpenStreetMap Nominatim, OSRM Routing, Open-Meteo Forecasts |
+| **Packaging & CI** | Docker multi-stage build, pnpm workspaces, uv |
+
+---
+
+## Concurrency & Performance Model
+
+The application is engineered for high-throughput dispatch operations across four distinct concurrency layers:
+
+1. **Development Concurrency (`concurrently`)**:
+   `pnpm run dev` coordinates both the Django Python API and Vite React server simultaneously in a single terminal session, handling synchronized signals, color-coded logging, and automatic exit handling.
+
+2. **Backend Multi-Threading (Gunicorn `gthread`)**:
+   In production, Gunicorn operates with multi-threaded worker pools:
+   $$\text{Capacity} = 2 \text{ workers} \times 4 \text{ threads} = 8 \text{ concurrent request slots}$$
+   Workers asynchronously yield while waiting on external upstream network calls (geocoding, routing, and weather APIs).
+
+3. **Client-Side Async Query Concurrency**:
+   TanStack Query executes non-blocking asynchronous data fetching with automatic deduplication, query caching, and optimistic UI transitions.
+
+4. **In-Memory Caching & Rate Limiting**:
+   - **Weather Forecast Cache**: 10-minute in-memory caching (`locmem`) prevents redundant forecast calls for overlapping checkpoints.
+   - **Geocoding Throttle**: Respects Nominatim's 1-request-per-second policy via thread-safe in-process cache.
+   - **Client Guard**: Sliding-window rate limit enforces a maximum of 8 route assessments per minute per IP address.
+
+---
+
+## Quick Start (Local Development)
+
+### Prerequisites
+- Node.js `20+` & pnpm `10+`
+- Python `3.13+` & uv
+
+### 1. Install Dependencies
 ```sh
 pnpm install
 uv sync
+```
+
+### 2. Run Application
+Start both the backend and frontend concurrently with a single command:
+```sh
 pnpm run dev
 ```
 
-`pnpm run dev` starts both the Django API (`http://127.0.0.1:8000`) and the Vite React frontend (`http://localhost:5173`) concurrently. Vite automatically proxies `/api` requests to the Django backend.
+| Service | Address |
+| :--- | :--- |
+| **Frontend (Web UI)** | [http://localhost:5174](http://localhost:5174) |
+| **Backend (Django API)** | [http://127.0.0.1:8001/api/v1/health](http://127.0.0.1:8001/api/v1/health) |
 
-Alternatively, you can run them in separate terminals:
-- Backend: `pnpm run dev:api`
-- Frontend: `pnpm run dev:web`
+*(Vite automatically proxies `/api` requests to port `8001`).*
 
-## API
+---
 
-- `GET /api/v1/health` — API health
-- `POST /api/v1/route-plans` — geocode the trip, request up to three OSRM route
-  alternatives, sample checkpoints every 10, 25, or 50 miles, retrieve hourly
-  Open-Meteo forecasts, apply the assessment's risk/load thresholds, and rank
-  the returned routes.
-
-The API accepts `origin`, `destination`, an ISO 8601 `departure_at` with time
-zone, `load_weight_lb`, and `sample_interval_miles`. A route request is limited
-to eight per client IP per minute.
-
-## Data providers and limits
-
-- OpenStreetMap Nominatim: geocoding, cached in-process and requested no more
-  than once per second.
-- OSRM public routing service: up to three available driving alternatives.
-- Open-Meteo: hourly wind, rain, snow, and temperature forecasts, cached for
-  ten minutes.
-
-The public services are suitable for an MVP and have their own usage policies
-and availability limits. Set `GEOCODING_BASE_URL`, `ROUTING_BASE_URL`, and
-`WEATHER_BASE_URL` to compatible hosted services for higher-volume production.
-No API keys are needed for the default providers.
-
-## Risk calculation
-
-The API evaluates wind, rain, and snow at each checkpoint. It applies the
-provided load overrides, weighs risk miles by the distance since the preceding
-checkpoint, and ranks routes by no-travel miles, severe miles, high miles,
-average risk, then estimated travel time. This puts no-travel exposure ahead of
-all other ranking criteria.
-
-The forecast slider displays each checkpoint's forecast from departure through
-48 hours. Trip risk uses weather nearest the checkpoint's estimated arrival
-time. Estimated travel time is the greater of the routing service duration and
-a 55 mph trip average; stops and traffic changes are not modelled.
-
-## Important limitation
-
-The public routing service returns general driving routes, not truck-legal
-routes. This app does not account for height, axle, bridge, hazardous-material,
-or local truck restrictions. Weather scores are decision support only, not a
-safety guarantee. Verify the route, current restrictions, and conditions with
-appropriate fleet and official sources before dispatch.
-
-## Tests
+## Testing & Quality
 
 ```sh
+# Run backend risk engine tests (6 unit tests)
 pnpm test
+
+# Run TypeScript typechecks across all packages
 pnpm run typecheck
+
+# Build frontend production bundle
+pnpm run build
 ```
+
+---
+
+## Production Deployment
+
+The project is packaged as a unified, multi-stage Docker container where WhiteNoise serves the compiled React assets and Gunicorn handles the API endpoints on a single port (zero CORS required).
+
+### Run with Docker Locally
+```sh
+docker build -t weather-aware-truck-routing .
+docker run -p 8000:8000 -e DJANGO_SECRET_KEY="your-secret-key" weather-aware-truck-routing
+```
+
+### 1-Click Deploy to Render
+The repository includes [`render.yaml`](render.yaml) for automated Blueprint deployment:
+1. Log in to [Render.com](https://render.com) and click **New +** → **Blueprint**.
+2. Select repository: `genius-0963/Weather-Aware-Truck-Routing-`.
+3. Click **Apply** — Render automatically builds the Docker container and assigns a live HTTPS URL.
+
+---
+
+## API Reference
+
+### Health Check
+```http
+GET /api/v1/health
+```
+```json
+{
+  "status": "ok"
+}
+```
+
+### Generate Route Plan
+```http
+POST /api/v1/route-plans
+Content-Type: application/json
+```
+```json
+{
+  "origin": "Prayagraj, India",
+  "destination": "New Delhi, India",
+  "departure_at": "2026-10-16T08:00:00Z",
+  "load_weight_lb": 38000,
+  "sample_interval_miles": 25
+}
+```
+
+---
+
+## Limitation & Safety Notice
+
+This application provides weather-informed decision support. Routing geometries are generated from general road networks (OSRM) and **do not model bridge heights, gross weight limits, axle restrictions, or hazardous-material bans**. Always verify dispatched routes against official state and national DOT restrictions prior to travel.
